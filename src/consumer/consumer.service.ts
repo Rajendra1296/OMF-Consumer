@@ -27,15 +27,19 @@ export class ConsumerService implements OnModuleInit {
   private readonly queueUrl: string;
   private readonly tableName: string;
   private readonly logger = new Logger(ConsumerService.name);
-  private readonly pollingInterval = 10000; // 30 seconds
+  private readonly pollingInterval = 1000; // 30 seconds
 
   constructor() {
     this.dynamoDBClient = new DynamoDBClient({
       region: 'us-east-1',
+      endpoint: 'http://localhost:4566',
     });
 
     this.tableName = process.env.TABLENAME;
-    this.sqsClient = new SQSClient({ region: process.env.REGION }); // AWS region
+    this.sqsClient = new SQSClient({
+      region: process.env.REGION,
+      endpoint: 'http://localhost:4566',
+    }); // AWS region
     this.queueUrl = process.env.TEST_QUEUE;
   }
 
@@ -215,7 +219,7 @@ export class ConsumerService implements OnModuleInit {
     try {
       const commandInput = {
         TableName: this.tableName,
-        IndexName: 'email-dob-index',
+        IndexName: 'EmailDobIndex',
         KeyConditionExpression: 'email = :email AND dob = :dob',
         ExpressionAttributeValues: {
           ':email': { S: email },
