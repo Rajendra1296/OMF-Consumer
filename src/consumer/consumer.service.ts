@@ -19,6 +19,7 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import * as AWSXRay from 'aws-xray-sdk-core';
 
 @Injectable()
 export class ConsumerService implements OnModuleInit {
@@ -32,14 +33,14 @@ export class ConsumerService implements OnModuleInit {
   constructor() {
     this.dynamoDBClient = new DynamoDBClient({
       region: 'us-east-1',
-      endpoint: 'http://localhost:4566',
+      // endpoint: 'http://localhost:4566',
     });
 
     this.tableName = process.env.TABLENAME;
     this.sqsClient = new SQSClient({
       region: process.env.REGION,
-      endpoint: 'http://localhost:4566',
-    }); // AWS region
+      // endpoint: 'http://localhost:4566',
+    });
     this.queueUrl = process.env.TEST_QUEUE;
   }
 
@@ -85,14 +86,23 @@ export class ConsumerService implements OnModuleInit {
     }
   }
   private async handleUserEvent(message: any) {
+    // const segment = AWSXRay.getSegment();
+    // // Start a new X-Ray subsegment for user creation
+    // const subsegment = segment.addNewSubsegment('message handler');
     try {
       if (!message.Body) {
+        // subsegment.addError('no message body');
+        // subsegment.close(); // Close the subsegment
+        // this.logger.log(`segemnt: ${segment}`);
         throw new Error('Message body is missing');
       }
 
       const body = JSON.parse(message.Body);
 
       if (!body.user || !body.operation) {
+        // subsegment.addError('Invalid message structure');
+        // subsegment.close(); // Close the subsegment
+        // this.logger.log(`segemnt: ${segment}`);
         throw new Error('Invalid message structure');
       }
 
@@ -202,14 +212,24 @@ export class ConsumerService implements OnModuleInit {
           this.logger.error('Error updating user in DynamoDB', error);
           throw new BadRequestException('Failed to update user');
         }
+
+        // this.logger.log(`segemnt: ${segment}`);
       } else {
+        // subsegment.addError(`Unknown operation: ${operation}`);
+        // subsegment.close(); // Close the subsegment
+        // this.logger.log(`segemnt: ${segment}`);
         this.logger.warn(`Unknown operation: ${operation}`);
       }
     } catch (error) {
       this.logger.error('Error handling SQS message:', error);
-    }
+    } //  finally {
+    //   subsegment.close();
+    // }
   }
   async getUserStatus(email: string, dob: string) {
+    const segment = AWSXRay.getSegment();
+    // Start a new X-Ray subsegment for user creation
+    const subsegment = segment.addNewSubsegment('userStatus');
     if (!email || !dob) {
       throw new BadRequestException(
         'Both email and date of birth must be provided.',
@@ -233,16 +253,27 @@ export class ConsumerService implements OnModuleInit {
         const user = response.Items[0];
         const id = user.id.S;
         const status = user.status.S;
+        subsegment.close(); // Close the subsegment
+        this.logger.log(`segemnt: ${segment}`);
         return { id, status };
       } else {
         throw new BadRequestException('User not found');
       }
     } catch (error) {
+      subsegment.addError('Error checking user status:', error);
+      subsegment.close(); // Close the subsegment
+      this.logger.log(`segemnt: ${segment}`);
       this.logger.error('Error checking user status:', error);
       throw new BadRequestException('Failed to check user status');
+    } finally {
+      subsegment.close(); // Close the subsegment
+      this.logger.log(`segemnt: ${segment}`);
     }
   }
   async getEntireUserDetails(id: string) {
+    const segment = AWSXRay.getSegment();
+    // Start a new X-Ray subsegment for user creation
+    const subsegment = segment.addNewSubsegment('userdetails');
     if (!id) {
       throw new BadRequestException(
         'Both email and date of birth must be provided.',
@@ -268,8 +299,14 @@ export class ConsumerService implements OnModuleInit {
         throw new BadRequestException('User not found');
       }
     } catch (error) {
+      subsegment.addError('Error checking user status:', error);
+      subsegment.close(); // Close the subsegment
+      this.logger.log(`segemnt: ${segment}`);
       this.logger.error('Error checking user status:', error);
       throw new BadRequestException('Failed to check user status');
+    } finally {
+      subsegment.close(); // Close the subsegment
+      this.logger.log(`segemnt: ${segment}`);
     }
   }
 }
